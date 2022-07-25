@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <meta name="description" content="online battleship game">
+
+  <style>
+  canvas {
+    border:1px solid #d3d3d3;
+    background-color: #f1f1f1;
+  }
+  </style>
+
+  <p>Welcome to battleship! This is a game of war!</p>
+  <p>
+    <b>Instructions</b>: There are five ships on the board.
+    Try to sink all of them. Got it? Good!
+  </p>
+  <p id="preButton">Click the button below to begin playing!</p>
+
+</head>
+
+<body>
+  <button id="startButton" onclick="startGame()">Start game!</button>
+
+  <script>
+
+  function hideStartButton() {
+    let prebtn = document.getElementById("preButton");
+    let btn = document.getElementById("startButton");
+    prebtn.style.display = "none";
+    btn.style.display = "none";
+  }
+
+  function startGame() {
+    hideStartButton(); //hide preButton and startButton after clicking on it
+    gameArea.generate(height=800, width=800, num_rows=10, num_cols=10);
+    field.genArray(); //empty field array
+    field.generateAllShips(); //add ships
+    console.log(field.arr);
+    activateClicking(); //set up user clicks
+  }
+
+  var gameArea = {
+    canvas: document.createElement("canvas"),
+    generate: function(height, width, num_rows, num_cols) {
+      //set up canvas
+      this.canvas.height = height;
+      this.canvas.width = width;
+      this.context = this.canvas.getContext("2d");
+      this.num_rows = num_rows;
+      this.num_cols = num_cols;
+      this.sq_width =  this.canvas.width / this.num_cols;
+      this.sq_height = this.canvas.height / this.num_rows;
+      document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+
+      //set up grid
+      this.context.beginPath();
+      this.context.lineWidth = 10;
+      for (var c = 0; c<=this.num_cols+1; c++) {
+        x_pos = c * this.sq_width;
+        this.context.moveTo(x_pos, 0);
+        this.context.lineTo(x_pos, this.canvas.height);
+      }
+
+      for (var r = 0; r<=this.num_rows+1; r++) {
+        y_pos = r * this.sq_height;
+        this.context.moveTo(0, y_pos);
+        this.context.lineTo(this.canvas.width, y_pos);
+      }
+      this.context.strokeStyle = "blue";
+      this.context.stroke();
+    },
+
+    update: function(c,r, color) {
+      this.context.fillStyle = color;
+      this.context.fillRect((c*this.sq_width)+(this.context.lineWidth/2),
+      (r*this.sq_height)+(this.context.lineWidth/2),
+      this.sq_width - this.context.lineWidth, this.sq_height - this.context.lineWidth);
+
+    }
+
+  }
+
+
+
+
+  var field = {
+    carr_len : 5,
+    batt_len : 4,
+    crz_len : 3,
+    sub_len : 3,
+    dest_len : 2,
+
+    genArray: function() {
+      this.arr = Array(gameArea.num_rows).fill().map(() => Array(gameArea.num_cols).fill(0));
+    },
+    genRandomInt: function(up_bound) {
+      return Math.floor(Math.random() * up_bound);
+    },
+    genOrntn: function() {
+      // [1,0] -> horiz, [0,1] -> vert
+      let x_or = this.genRandomInt(2);
+      var y_or = 1 - x_or;
+      return [x_or, y_or];
+    },
+    checkValidPlace: function(place) {
+      const zero = (e) => e == 0;
+      return place.every(zero);
+    },
+
+    generateShip: function(ship_len) {
+      var [x_or, y_or] = this.genOrntn();
+      //generate row and column given orientation restrictions
+      var [r, c] = [this.genRandomInt(gameArea.num_rows - (y_or * ship_len)),
+        this.genRandomInt(gameArea.num_cols - (x_or * ship_len))];
+      if (x_or == 1) { //horizontal orientation
+        place = this.arr[r].slice(c, c+ship_len);
+        if (this.checkValidPlace(place)) {
+          for (p = c; p < c+ship_len; p++) {
+            this.arr[r][p] = 1
+          }
+        } else { //rerun function if placement is invalid
+          this.generateShip(ship_len);
+        }
+      } else { //vertical orientation
+        col = this.arr.map(x => x[c]); //get entire column
+        place = col.splice(r, r+ship_len);
+        if (this.checkValidPlace(place)) {
+          for (p = r; p < r+ship_len; p++) {
+            this.arr[p][c] = 1
+          }
+        } else { //rerun function if placement is invalid
+          this.generateShip(ship_len);
+        }
+      }
+    },
+
+    generateAllShips: function() {
+      this.ship_lens = [this.carr_len, this.batt_len,
+        this.crz_len, this.sub_len, this.dest_len];
+
+      this.num_ship_sqs = this.carr_len + this.batt_len + this.crz_len
+      + this.sub_len + this.dest_len;
+
+      this.num_hit_sqs = 0;
+
+      this.ship_lens.forEach(ship_len => this.generateShip(ship_len));
+    },
+
+    displayWinMessage: function() {
+      let p = document.createElement('p');
+      let congrats = document.createTextNode("Congratulations! You won!");
+      p.style.fontSize = "40px";
+      p.style.fontWeight = "bold";
+      p.style.textAlign = "center";
+      p.insertBefore(congrats, p.childNodes[0]);
+      document.body.insertBefore(p, document.body.childNodes[0]);
+    },
+
+    update: function(c, r, inc) {
+      if (this.arr[r][c] == 1) {
+        this.num_hit_sqs++
+      }
+      this.arr[r][c] = this.arr[r][c] + inc;
+      if (this.num_hit_sqs == this.num_ship_sqs) {
+        this.displayWinMessage();
+        gameArea.canvas.removeEventListener("click", updateClickedSquare);
+      }
+    }
+
+  }
+
+
+
+  function updateClickedSquare(event) {
+    let cnvs = gameArea.canvas.getBoundingClientRect();
+    let [x,y] = [event.clientX - cnvs.left, event.clientY - cnvs.top];
+    [c,r] = [Math.floor(x/gameArea.sq_width),
+      Math.floor(y/gameArea.sq_height)];
+    let sq_val = field.arr[r][c];
+    if (sq_val == 0 || sq_val == 1) {
+      colors = [miss_color, hit_color] = ["#03C04A", "red"];
+      incs = [miss_inc, hit_inc] = [-1, 1];
+      gameArea.update(c, r, colors[sq_val]);
+      field.update(c, r, incs[sq_val]);
+    }
+  }
+
+  function activateClicking() {
+    gameArea.canvas.addEventListener("click", updateClickedSquare);
+  }
+
+  </script>
+
+</body>
+
+
+
+</html>
